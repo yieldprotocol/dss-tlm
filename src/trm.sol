@@ -16,8 +16,8 @@ interface FYDaiAbstract {
 }
 
 // Term Rates Module
-// Allows anyone to go sell fyDai at a maturity-adjusted price
-
+// Allows anyone to sell fyDai to MakerDao at a price determined from a governance  
+// controlled interest rate.
 contract DssTrm {
 
     // --- Auth ---
