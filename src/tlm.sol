@@ -2,6 +2,7 @@ pragma solidity ^0.6.7;
 
 import { DaiJoinAbstract } from "dss-interfaces/dss/DaiJoinAbstract.sol";
 import { DaiAbstract } from "dss-interfaces/dss/DaiAbstract.sol";
+import { GemAbstract } from "dss-interfaces/dss/GemAbstract.sol";
 import { VatAbstract } from "dss-interfaces/dss/VatAbstract.sol";
 
 interface AuthGemJoinAbstract {
@@ -13,6 +14,12 @@ interface AuthGemJoinAbstract {
 
 interface MaturingGemAbstract {
     function maturity() external view returns (uint256);
+    function redeem(address from, address to, uint256 amount) external returns (uint256);
+}
+
+interface FlashAbstract {
+    function flashFee(address token, uint256 amount) external view returns (uint256);
+    function flashLoan(address receiver, address token, uint256 amount, bytes calldata data) external view returns (uint256);
 }
 
 // Term Lending Module
@@ -37,6 +44,9 @@ contract DssTlm {
 
     VatAbstract immutable public vat;
     DaiJoinAbstract immutable public daiJoin;
+    DaiAbstract immutable public dai;
+    FlashAbstract immutable public flash;
+    address immutable public vow;
 
     mapping (bytes32 => Ilk) public ilks;
 
@@ -47,13 +57,15 @@ contract DssTlm {
     event SellGem(address indexed owner, uint256 gem, uint256 dai);
 
     // --- Init ---
-    constructor(address daiJoin_) public {
+    constructor(address daiJoin_, address vow_, address flash_) public {
         wards[msg.sender] = 1;
         emit Rely(msg.sender);
         // AuthGemJoinAbstract gemJoin__ = gemJoin = AuthGemJoinAbstract(gemJoin_);
         DaiJoinAbstract daiJoin__ = daiJoin = DaiJoinAbstract(daiJoin_);
         VatAbstract vat__ = vat = VatAbstract(address(daiJoin__.vat()));
-        DaiAbstract dai__ = DaiAbstract(address(daiJoin__.dai()));
+        DaiAbstract dai__ = dai = DaiAbstract(address(daiJoin__.dai()));
+        FlashAbstract flash = FlashAbstract(flash_);
+        vow = vow_;
         
         dai__.approve(daiJoin_, uint256(-1));
         vat__.hope(daiJoin_);
@@ -110,6 +122,8 @@ contract DssTlm {
         require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
         ilks[ilk].to18ConversionFactor = 10 ** (18 - AuthGemJoinAbstract(gemJoin).dec());
+
+        GemAbstract(AuthGemJoinAbstract(gemJoin).gem()).approve(gemJoin, uint256(-1));
     }
 
     function file(bytes32 what, uint256 data) external auth {
@@ -146,5 +160,31 @@ contract DssTlm {
         daiJoin.exit(usr, daiAmt);
 
         emit SellGem(usr, gemAmt, daiAmt);
+    }
+
+    function redeemGem(bytes32 ilk) external {
+        AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
+        MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
+        require(block.timestamp >= gem.maturity(), "DssTlm/not-mature");
+
+        // To get the gems out of the Urn we use a Dai flash loan from the dss-flash module (MIP-25)
+        uint256 art = ilks[ilk].art;
+        uint256 fee = flash.flashFee(address(dai), art);
+        dai.approve(lender, add(art, fee));
+        flash.flashLoan(address(this), address(dai), art, ""); // The `onFlashLoan` callback gets executed before the next line
+        vat.move(address(this), vow, dai.balanceOf(address(this))); // Back from the flash loan, if we have any dai left we send it to the vow
+        emit Redeem(gemAmt, daiAmt);
+    }
+
+    function onFlashLoan(address sender, address token, uint256 amount, uint256 fee, bytes calldata data) external {
+        require(msg.sender == lender, "DssTlm/only-lender");
+        require(sender == address(this), "DssTlm/only-self");
+
+        uint256 gemAmt = gem.balanceOf(address(gemJoin));
+        uint256 art = ilks[ilk].art;
+        daiJoin.join(address(this), art, msg.sender); // Assuming `rate` == 1.0
+        vat.frob(ilk, address(this), address(this), address(this), -int256(gemAmt), -int256(art));
+        gemJoin.exit(address(this), gemAmt);
+        gem.redeem(address(this), address(this), gem.balanceOf(address(this))); // This should return more dai than necessary to repay the flash loan
     }
 }
