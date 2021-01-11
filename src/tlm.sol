@@ -171,14 +171,17 @@ contract DssTlm {
         uint256 art = ilks[ilk].art;
         uint256 fee = flash.flashFee(address(dai), art);
         dai.approve(lender, add(art, fee));
-        flash.flashLoan(address(this), address(dai), art, ""); // The `onFlashLoan` callback gets executed before the next line
+        flash.flashLoan(address(this), address(dai), art, abi.encode(ilk)); // The `onFlashLoan` callback gets executed before the next line
         vat.move(address(this), vow, dai.balanceOf(address(this))); // Back from the flash loan, if we have any dai left we send it to the vow
-        emit Redeem(gemAmt, daiAmt);
     }
 
     function onFlashLoan(address sender, address token, uint256 amount, uint256 fee, bytes calldata data) external {
         require(msg.sender == lender, "DssTlm/only-lender");
         require(sender == address(this), "DssTlm/only-self");
+
+        bytes32 ilk = abi.decode(data, bytes32);
+        AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
+        MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
 
         uint256 gemAmt = gem.balanceOf(address(gemJoin));
         uint256 art = ilks[ilk].art;
