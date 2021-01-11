@@ -11,14 +11,14 @@ interface AuthGemJoinAbstract {
     function join(address, uint256, address) external;
 }
 
-interface FYDaiAbstract {
+interface MaturingGemAbstract {
     function maturity() external view returns (uint256);
 }
 
-// Term Rates Module
-// Allows anyone to go sell fyDai at a maturity-adjusted price
+// Term Lending Module
+// Allows anyone to go sell a maturity gem to the TLM at a maturity-adjusted price
 
-contract DssTrm {
+contract DssTlm {
 
     // --- Auth ---
     mapping (address => uint256) public wards;
@@ -107,7 +107,7 @@ contract DssTrm {
 
     // --- Administration ---
     function init(bytes32 ilk, address gemJoin) external note auth {
-        require(ilks[ilk].gemJoin == address(0), "DssTrm/ilk-already-init");
+        require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
         ilks[ilk].to18ConversionFactor = 10 ** (18 - AuthGemJoinAbstract(gemJoin).dec());
     }
@@ -115,7 +115,7 @@ contract DssTrm {
     function file(bytes32 what, uint256 data) external auth {
         if (what == "line") ilks[ilk].line = data;
         else if (what == "yield") ilks[ilk].yield = data;
-        else revert("DssTrm/file-unrecognized-param");
+        else revert("DssTlm/file-unrecognized-param");
 
         emit File(what, data);
     }
@@ -132,15 +132,15 @@ contract DssTrm {
     // --- Primary Functions ---
     function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
-        FYDaiAbstract fyDai = IFYDai(address(gemJoin.gem()));
+        MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
         uint256 gemAmt18 = mul(gemAmt, to18ConversionFactor);
-        uint256 time = fyDai.maturity().sub(block.timestamp); // Reverts after maturity
+        uint256 time = gem.maturity().sub(block.timestamp); // Reverts after maturity
         uint256 price = rdiv(RAY, rpow(add(RAY, ilks[ilk].yield), time, RAY));
         uint256 daiAmt = rmul(gemAmt18, price);
         ilks[ilk].art = add(ilks[ilk].art, daiAmt);
-        require(mul(ilks[ilk].art, RAY) <= ilks[ilk].line, "DssTrm/ceiling-exceeded");
+        require(mul(ilks[ilk].art, RAY) <= ilks[ilk].line, "DssTlm/ceiling-exceeded");
         
-        // Don't we need to `transferFrom` the fyDai from `msg.sender`?
+        // Don't we need to `transferFrom` the fyDai/gem from `msg.sender`?
         gemJoin.join(address(this), gemAmt, msg.sender);
         vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt18), int256(daiAmt));
         daiJoin.exit(usr, daiAmt);
