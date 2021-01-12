@@ -135,6 +135,10 @@ contract DssTlmTest is DSTest {
     uint256 constant FYDAI_WAD = 10 ** 18;
     uint256 constant MATURITY = 1640995199;
 
+    uint256 constant WAD = 10 ** 18;
+    uint256 constant RAY = 10 ** 27;
+    uint256 constant RAD = 10 ** 45;
+
     function ray(uint256 wad) internal pure returns (uint256) {
         return wad * 10 ** 9;
     }
@@ -191,6 +195,15 @@ contract DssTlmTest is DSTest {
         tlm.init(ilkA, address(gemJoinA));
         (address gemJoinAAddress,,,) = tlm.ilks(ilkA);
         assertEq(gemJoinAAddress, address(gemJoinA));
+    }
+
+    function test_file_ilk() public {
+        tlm.init(ilkA, address(gemJoinA));
+        tlm.file(ilkA, "line", 1000 * RAD);
+        tlm.file(ilkA, "yield", RAY);
+        (,,uint256 line, uint256 yield) = tlm.ilks(ilkA);
+        assertEq(line, 1000 * RAD);
+        assertEq(yield, RAY);
     }
 
 
