@@ -7,13 +7,13 @@ import { LibNote } from "./dss/lib.sol";
 
 interface AuthGemJoinAbstract {
     function ilk() external view returns (bytes32);
-    function gem() external view returns (address);
+    function gem() external view returns (MaturingGemAbstract);
     function join(address, uint256) external;
     function exit(address, uint256) external;
 }
 
 interface MaturingGemAbstract {
-    function approve(address spender, uint256 amount) external view returns (bool);
+    function approve(address spender, uint256 amount) external returns (bool);
     function balanceOf(address usr) external view returns (uint256);
     function maturity() external view returns (uint256);
     function transferFrom(address src, address dst, uint wad) external returns (bool);
@@ -122,7 +122,8 @@ contract DssTlm is LibNote {
         require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
 
-        MaturingGemAbstract(AuthGemJoinAbstract(gemJoin).gem()).approve(gemJoin, uint256(-1));
+        AuthGemJoinAbstract gemJoin_ = AuthGemJoinAbstract(gemJoin);
+        gemJoin_.gem().approve(gemJoin, uint256(-1));
     }
 
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
@@ -143,7 +144,7 @@ contract DssTlm is LibNote {
     // --- Primary Functions ---
     function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
-        MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
+        MaturingGemAbstract gem = gemJoin.gem();
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
         uint256 price = rdiv(RAY, rpow(add(RAY, ilks[ilk].yield), time, RAY));
         uint256 daiAmt = rmul(gemAmt, price);
@@ -158,7 +159,7 @@ contract DssTlm is LibNote {
 
     function redeemGem(bytes32 ilk) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
-        MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
+        MaturingGemAbstract gem = gemJoin.gem();
         require(block.timestamp >= gem.maturity(), "DssTlm/not-mature");
 
         // To get the gems out of the Urn we use a Dai flash loan from the dss-flash module (MIP-25)
@@ -175,7 +176,7 @@ contract DssTlm is LibNote {
 
         bytes32 ilk = abi.decode(data, (bytes32));
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
-        MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
+        MaturingGemAbstract gem = gemJoin.gem();
 
         uint256 gemAmt = gem.balanceOf(address(gemJoin));
         uint256 art = ilks[ilk].art;
