@@ -20,7 +20,7 @@
 
 pragma solidity ^0.6.7;
 
-import "dss/lib.sol";
+import "./dss/lib.sol";
 
 interface VatLike {
     function slip(bytes32, address, int256) external;
