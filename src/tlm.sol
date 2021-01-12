@@ -6,10 +6,9 @@ import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 import { LibNote } from "./dss/lib.sol";
 
 interface AuthGemJoinAbstract {
-    function dec() external view returns (uint256);
     function ilk() external view returns (bytes32);
     function gem() external view returns (address);
-    function join(address, uint256, address) external;
+    function join(address, uint256) external;
     function exit(address, uint256) external;
 }
 
@@ -17,7 +16,8 @@ interface MaturingGemAbstract {
     function approve(address spender, uint256 amount) external view returns (bool);
     function balanceOf(address usr) external view returns (uint256);
     function maturity() external view returns (uint256);
-    function redeem(address from, address to, uint256 amount) external returns (uint256);
+    function transferFrom(address src, address dst, uint wad) external returns (bool);
+    function redeem(address src, address dst, uint256 amount) external returns (uint256);
 }
 
 interface FlashAbstract {
@@ -46,7 +46,6 @@ contract DssTlm is LibNote {
         uint256 art;                  // Current Debt              [wad]
         uint256 line;                 // Debt Ceiling              [rad]
         uint256 yield;                // Target yield, per second  [ray]
-        uint256 to18ConversionFactor; // Multiplier to WAD         [uint]
     }
 
     VatAbstract immutable public vat;
@@ -122,7 +121,6 @@ contract DssTlm is LibNote {
     function init(bytes32 ilk, address gemJoin) external note auth {
         require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
-        ilks[ilk].to18ConversionFactor = 10 ** (18 - AuthGemJoinAbstract(gemJoin).dec());
 
         MaturingGemAbstract(AuthGemJoinAbstract(gemJoin).gem()).approve(gemJoin, uint256(-1));
     }
@@ -146,16 +144,15 @@ contract DssTlm is LibNote {
     function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
         MaturingGemAbstract gem = MaturingGemAbstract(address(gemJoin.gem()));
-        uint256 gemAmt18 = mul(gemAmt, ilks[ilk].to18ConversionFactor);
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
         uint256 price = rdiv(RAY, rpow(add(RAY, ilks[ilk].yield), time, RAY));
-        uint256 daiAmt = rmul(gemAmt18, price);
+        uint256 daiAmt = rmul(gemAmt, price);
         ilks[ilk].art = add(ilks[ilk].art, daiAmt);
         require(mul(ilks[ilk].art, RAY) <= ilks[ilk].line, "DssTlm/ceiling-exceeded");
         
-        // AuthGemJoin includes the `transferFrom` from `msg.sender` in `join`
-        gemJoin.join(address(this), gemAmt, msg.sender);
-        vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt18), int256(daiAmt));
+        gem.transferFrom(msg.sender, address(this), gemAmt);
+        gemJoin.join(address(this), gemAmt);
+        vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt), int256(daiAmt));
         daiJoin.exit(usr, daiAmt);
     }
 

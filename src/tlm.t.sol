@@ -3,6 +3,8 @@ pragma solidity ^0.6.7;
 import "./ds-test/test.sol";
 import "./ds-value/value.sol";
 import "./ds-token/token.sol";
+import "./ds-math/math.sol";
+import "./dss-gem-joins/join-auth.sol";
 import {Vat}              from "./dss/vat.sol";
 import {Spotter}          from "./dss/spot.sol";
 import {Vow}              from "./dss/vow.sol";
@@ -10,20 +12,49 @@ import {GemJoin, DaiJoin} from "./dss/join.sol";
 import {Dai}              from "./dss/dai.sol";
 
 import "./tlm.sol";
-import "./join-5-auth.sol";
-// import "./lerp.sol";
 
 interface Hevm {
     function warp(uint256) external;
     function store(address,bytes32,bytes32) external;
 }
 
-contract TestToken is DSToken {
+contract TestFYDai is DSMath, DSToken {
 
-    constructor(bytes32 symbol_, uint256 decimals_) public DSToken(symbol_) {
+    Dai public dai;
+    uint256 public maturity;
+
+    mapping(address => mapping(address => bool)) public delegated;
+
+    constructor(address dai_, uint256 maturity_, bytes32 symbol_, uint256 decimals_) public DSToken(symbol_) {
+        dai = Dai(dai_);
+        maturity = maturity_;
         decimals = decimals_;
     }
 
+    modifier onlyHolderOrDelegate(address holder, string memory errorMessage) {
+        require(
+            msg.sender == holder || delegated[holder][msg.sender],
+            errorMessage
+        );
+        _;
+    }
+
+    function addDelegate(address delegate) public {
+        delegated[msg.sender][delegate] = true;
+    }
+
+    function redeem(address src, address dst, uint256 wad) public
+        onlyHolderOrDelegate(src, "FYDai: Only Holder Or Delegate")
+        returns (uint256)
+    {
+        require(balanceOf[src] >= wad, "ds-token-insufficient-balance");
+        balanceOf[src] = sub(balanceOf[src], wad);
+        totalSupply = sub(totalSupply, wad);
+        emit Burn(src, wad);
+
+        dai.mint(dst, wad);
+        return wad;
+    }
 }
 
 contract TestVat is Vat {
@@ -49,24 +80,26 @@ contract TestVow is Vow {
     }
 }
 
+contract TestFlash { }
+
 contract User {
 
     Dai public dai;
-    AuthGemJoin5 public gemJoin;
+    AuthGemJoin public gemJoin;
     DssTlm public tlm;
 
-    constructor(Dai dai_, AuthGemJoin5 gemJoin_, DssTlm tlm_) public {
+    constructor(Dai dai_, AuthGemJoin gemJoin_, DssTlm tlm_) public {
         dai = dai_;
         gemJoin = gemJoin_;
         tlm = tlm_;
     }
 
-    /*
-    function sellGem(uint256 wad) public {
+    function sellGem(bytes32 ilk, uint256 wad) public {
         DSToken(address(gemJoin.gem())).approve(address(gemJoin));
-        tlm.sellGem(address(this), wad);
+        tlm.sellGem(ilk, address(this), wad);
     }
 
+    /*
     function buyGem(uint256 wad) public {
         dai.approve(address(tlm), uint256(-1));
         tlm.buyGem(address(this), wad);
@@ -84,21 +117,23 @@ contract DssTlmTest is DSTest {
     Spotter spot;
     TestVow vow;
     DSValue pip;
-    TestToken usdx;
+    TestFYDai fyDai;
     DaiJoin daiJoin;
     Dai dai;
+    TestFlash flash;
 
-    AuthGemJoin5 gemA;
+    AuthGemJoin gemA;
     DssTlm tlmA;
 
     // CHEAT_CODE = 0x7109709ECfa91a80626fF3989D68f67F5b1DD12D
     bytes20 constant CHEAT_CODE =
         bytes20(uint160(uint256(keccak256('hevm cheat code'))));
 
-    bytes32 constant ilk = "usdx";
+    bytes32 constant ilk = "fyDai";
 
     uint256 constant TOLL_ONE_PCT = 10 ** 16;
-    uint256 constant USDX_WAD = 10 ** 6;
+    uint256 constant FYDAI_WAD = 10 ** 18;
+    uint256 constant MATURITY = 1640995199;
 
     function ray(uint256 wad) internal pure returns (uint256) {
         return wad * 10 ** 9;
@@ -119,25 +154,27 @@ contract DssTlmTest is DSTest {
         spot = new Spotter(address(vat));
         vat.rely(address(spot));
 
+        flash = new TestFlash();
+
         vow = new TestVow(address(vat), address(0), address(0));
 
-        usdx = new TestToken("USDX", 6);
-        usdx.mint(1000 * USDX_WAD);
+        dai = new Dai(0);
+
+        fyDai = new TestFYDai(address(dai), MATURITY, "FYDAI", 18);
+        fyDai.mint(1000 * FYDAI_WAD);
 
         vat.init(ilk);
 
-        gemA = new AuthGemJoin5(address(vat), ilk, address(usdx));
+        gemA = new AuthGemJoin(address(vat), ilk, address(fyDai));
         vat.rely(address(gemA));
 
-        dai = new Dai(0);
         daiJoin = new DaiJoin(address(vat), address(dai));
         vat.rely(address(daiJoin));
         dai.rely(address(daiJoin));
 
-        /*
-        tlmA = new DssTlm(address(gemA), address(daiJoin), address(vow));
-        gemA.rely(address(tlmA));
-        gemA.deny(me);
+        tlmA = new DssTlm(address(daiJoin), address(vow), address(flash));
+        // gemA.rely(address(tlmA)); Does this need to go into tlm.init()?
+        // gemA.deny(me);
 
         pip = new DSValue();
         pip.poke(bytes32(uint256(1 ether))); // Spot = $1
@@ -148,21 +185,26 @@ contract DssTlmTest is DSTest {
 
         vat.file(ilk, "line", rad(1000 ether));
         vat.file("Line",      rad(1000 ether));
-        */
     }
+
+    function test_init_ilk() public {
+        tlmA.init(ilk, address(gemA));
+        // How do I retrieve a struct?
+    }
+
 
     /*
     function test_sellGem_no_fee() public {
-        assertEq(usdx.balanceOf(me), 1000 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 1000 * FYDAI_WAD);
         assertEq(vat.gem(ilk, me), 0);
         assertEq(vat.dai(me), 0);
         assertEq(dai.balanceOf(me), 0);
         assertEq(vow.Joy(), 0);
 
-        usdx.approve(address(gemA));
-        tlmA.sellGem(me, 100 * USDX_WAD);
+        fyDai.approve(address(gemA));
+        tlmA.sellGem(me, 100 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 900 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
         assertEq(vat.gem(ilk, me), 0);
         assertEq(vat.dai(me), 0);
         assertEq(dai.balanceOf(me), 100 ether);
@@ -178,16 +220,16 @@ contract DssTlmTest is DSTest {
     function test_sellGem_fee() public {
         tlmA.file("tin", TOLL_ONE_PCT);
 
-        assertEq(usdx.balanceOf(me), 1000 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 1000 * FYDAI_WAD);
         assertEq(vat.gem(ilk, me), 0);
         assertEq(vat.dai(me), 0);
         assertEq(dai.balanceOf(me), 0);
         assertEq(vow.Joy(), 0);
 
-        usdx.approve(address(gemA));
-        tlmA.sellGem(me, 100 * USDX_WAD);
+        fyDai.approve(address(gemA));
+        tlmA.sellGem(me, 100 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 900 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
         assertEq(vat.gem(ilk, me), 0);
         assertEq(vat.dai(me), 0);
         assertEq(dai.balanceOf(me), 99 ether);
@@ -195,12 +237,12 @@ contract DssTlmTest is DSTest {
     }
 
     function test_swap_both_no_fee() public {
-        usdx.approve(address(gemA));
-        tlmA.sellGem(me, 100 * USDX_WAD);
+        fyDai.approve(address(gemA));
+        tlmA.sellGem(me, 100 * FYDAI_WAD);
         dai.approve(address(tlmA), 40 ether);
-        tlmA.buyGem(me, 40 * USDX_WAD);
+        tlmA.buyGem(me, 40 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 940 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 940 * FYDAI_WAD);
         assertEq(vat.gem(ilk, me), 0);
         assertEq(vat.dai(me), 0);
         assertEq(dai.balanceOf(me), 60 ether);
@@ -214,10 +256,10 @@ contract DssTlmTest is DSTest {
         tlmA.file("tin", 5 * TOLL_ONE_PCT);
         tlmA.file("tout", 10 * TOLL_ONE_PCT);
 
-        usdx.approve(address(gemA));
-        tlmA.sellGem(me, 100 * USDX_WAD);
+        fyDai.approve(address(gemA));
+        tlmA.sellGem(me, 100 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 900 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
         assertEq(dai.balanceOf(me), 95 ether);
         assertEq(vow.Joy(), rad(5 ether));
         (uint256 ink1, uint256 art1) = vat.urns(ilk, address(tlmA));
@@ -225,9 +267,9 @@ contract DssTlmTest is DSTest {
         assertEq(art1, 100 ether);
 
         dai.approve(address(tlmA), 44 ether);
-        tlmA.buyGem(me, 40 * USDX_WAD);
+        tlmA.buyGem(me, 40 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 940 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 940 * FYDAI_WAD);
         assertEq(dai.balanceOf(me), 51 ether);
         assertEq(vow.Joy(), rad(9 ether));
         (uint256 ink2, uint256 art2) = vat.urns(ilk, address(tlmA));
@@ -236,19 +278,19 @@ contract DssTlmTest is DSTest {
     }
 
     function test_swap_both_other() public {
-        usdx.approve(address(gemA));
-        tlmA.sellGem(me, 100 * USDX_WAD);
+        fyDai.approve(address(gemA));
+        tlmA.sellGem(me, 100 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 900 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
         assertEq(dai.balanceOf(me), 100 ether);
         assertEq(vow.Joy(), rad(0 ether));
 
         User someUser = new User(dai, gemA, tlmA);
         dai.mint(address(someUser), 45 ether);
-        someUser.buyGem(40 * USDX_WAD);
+        someUser.buyGem(40 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(me), 900 * USDX_WAD);
-        assertEq(usdx.balanceOf(address(someUser)), 40 * USDX_WAD);
+        assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
+        assertEq(fyDai.balanceOf(address(someUser)), 40 * FYDAI_WAD);
         assertEq(vat.gem(ilk, me), 0 ether);
         assertEq(vat.gem(ilk, address(someUser)), 0 ether);
         assertEq(vat.dai(me), 0);
@@ -265,19 +307,19 @@ contract DssTlmTest is DSTest {
         tlmA.file("tin", 1);
 
         User user1 = new User(dai, gemA, tlmA);
-        usdx.transfer(address(user1), 40 * USDX_WAD);
-        user1.sellGem(40 * USDX_WAD);
+        fyDai.transfer(address(user1), 40 * FYDAI_WAD);
+        user1.sellGem(40 * FYDAI_WAD);
 
-        assertEq(usdx.balanceOf(address(user1)), 0 * USDX_WAD);
+        assertEq(fyDai.balanceOf(address(user1)), 0 * FYDAI_WAD);
         assertEq(dai.balanceOf(address(user1)), 40 ether - 40);
         assertEq(vow.Joy(), rad(40));
         (uint256 ink1, uint256 art1) = vat.urns(ilk, address(tlmA));
         assertEq(ink1, 40 ether);
         assertEq(art1, 40 ether);
 
-        user1.buyGem(40 * USDX_WAD - 1);
+        user1.buyGem(40 * FYDAI_WAD - 1);
 
-        assertEq(usdx.balanceOf(address(user1)), 40 * USDX_WAD - 1);
+        assertEq(fyDai.balanceOf(address(user1)), 40 * FYDAI_WAD - 1);
         assertEq(dai.balanceOf(address(user1)), 999999999960);
         assertEq(vow.Joy(), rad(40));
         (uint256 ink2, uint256 art2) = vat.urns(ilk, address(tlmA));
@@ -287,44 +329,44 @@ contract DssTlmTest is DSTest {
 
     function testFail_sellGem_insufficient_gem() public {
         User user1 = new User(dai, gemA, tlmA);
-        user1.sellGem(40 * USDX_WAD);
+        user1.sellGem(40 * FYDAI_WAD);
     }
 
     function testFail_swap_both_small_fee_insufficient_dai() public {
         tlmA.file("tin", 1);        // Very small fee pushes you over the edge
 
         User user1 = new User(dai, gemA, tlmA);
-        usdx.transfer(address(user1), 40 * USDX_WAD);
-        user1.sellGem(40 * USDX_WAD);
-        user1.buyGem(40 * USDX_WAD);
+        fyDai.transfer(address(user1), 40 * FYDAI_WAD);
+        user1.sellGem(40 * FYDAI_WAD);
+        user1.buyGem(40 * FYDAI_WAD);
     }
 
     function testFail_sellGem_over_line() public {
-        usdx.mint(1000 * USDX_WAD);
-        usdx.approve(address(gemA));
-        tlmA.buyGem(me, 2000 * USDX_WAD);
+        fyDai.mint(1000 * FYDAI_WAD);
+        fyDai.approve(address(gemA));
+        tlmA.buyGem(me, 2000 * FYDAI_WAD);
     }
 
     function testFail_two_users_insufficient_dai() public {
         User user1 = new User(dai, gemA, tlmA);
-        usdx.transfer(address(user1), 40 * USDX_WAD);
-        user1.sellGem(40 * USDX_WAD);
+        fyDai.transfer(address(user1), 40 * FYDAI_WAD);
+        user1.sellGem(40 * FYDAI_WAD);
 
         User user2 = new User(dai, gemA, tlmA);
         dai.mint(address(user2), 39 ether);
-        user2.buyGem(40 * USDX_WAD);
+        user2.buyGem(40 * FYDAI_WAD);
     }
 
     function test_swap_both_zero() public {
-        usdx.approve(address(gemA), uint(-1));
+        fyDai.approve(address(gemA), uint(-1));
         tlmA.sellGem(me, 0);
         dai.approve(address(tlmA), uint(-1));
         tlmA.buyGem(me, 0);
     }
 
     function testFail_direct_deposit() public {
-        usdx.approve(address(gemA), uint(-1));
-        gemA.join(me, 10 * USDX_WAD, me);
+        fyDai.approve(address(gemA), uint(-1));
+        gemA.join(me, 10 * FYDAI_WAD, me);
     }
 
     function test_lerp_tin() public {
