@@ -5,9 +5,7 @@ import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
 import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 import { LibNote } from "./dss/lib.sol";
 
-import "./ds-test/test.sol";
-import "./str-utils.sol";
-
+/// @dev A GemJoin with restricted `join` access.
 interface AuthGemJoinAbstract {
     function ilk() external view returns (bytes32);
     function gem() external view returns (MaturingGemAbstract);
@@ -15,26 +13,25 @@ interface AuthGemJoinAbstract {
     function exit(address, uint256) external;
 }
 
+/// @dev An ERC20 that can mature and be redeemed, such as fyDai
 interface MaturingGemAbstract {
     function approve(address spender, uint256 amount) external returns (bool);
-    function allowance(address owner, address spender) external returns (uint256);
     function balanceOf(address usr) external view returns (uint256);
     function maturity() external view returns (uint256);
     function transferFrom(address src, address dst, uint wad) external returns (bool);
     function redeem(address src, address dst, uint256 amount) external returns (uint256);
 }
 
+/// @dev An ERC3156 Flash Lender
 interface FlashAbstract {
+    function maxFlashAmount(address token) external view returns (uint256);
     function flashFee(address token, uint256 amount) external view returns (uint256);
     function flashLoan(address receiver, address token, uint256 amount, bytes calldata data) external;
 }
 
-// Term Lending Module
-// Allows anyone to go sell a maturity gem to the TLM at a maturity-adjusted price
-
-contract DssTlm is LibNote, DSTest {
-    using StringUtils for uint256;
-    using StringUtils for bytes32;
+/// @title Term Lending Module
+/// @dev Allows anyone to go sell a maturity gem to the TLM at a maturity-adjusted price
+contract DssTlm is LibNote {
 
     // --- Auth ---
     mapping (address => uint256) public wards;
@@ -60,7 +57,7 @@ contract DssTlm is LibNote, DSTest {
     FlashAbstract immutable public flash;
     address immutable public vow;
 
-    mapping (bytes32 => Ilk) public ilks;
+    mapping (bytes32 => Ilk) public ilks; // Registered maturing gems
 
     // --- Init ---
     constructor(address daiJoin_, address vow_, address flash_) public {
@@ -81,6 +78,7 @@ contract DssTlm is LibNote, DSTest {
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
 
+    /// @dev Power of a base-decimal x to an integer n.
     function rpow(uint x, uint n, uint base) internal pure returns (uint z) {
         assembly {
             switch x case 0 {switch n case 0 {z := base} default {z := 0}}
@@ -105,29 +103,34 @@ contract DssTlm is LibNote, DSTest {
         }
     }
 
-    function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x + y) >= x, "DssTlm/add-overflow");
-    }
-    function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x - y) <= x, "DssTlm/sub-overflow");
-    }
-    function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
-    }
-    //rounds to zero if x*y < WAD / 2
-    function rmul(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, y), RAY / 2) / RAY;
-    }
-    //rounds to zero if x*y < RAY / 2
-    function rdiv(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, RAY), y / 2) / y;
-    }
+    /// @dev Convert a wad to a rad
     function rad(uint256 wad) internal pure returns (uint256) {
         return wad * RAY;
     }
+    /// @dev Overflow-protected x + y
+    function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        require((z = x + y) >= x, "DssTlm/add-overflow");
+    }
+    /// @dev Overflow-protected x - y
+    function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        require((z = x - y) <= x, "DssTlm/sub-overflow");
+    }
+    /// @dev Overflow-protected x * y
+    function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
+        require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
+    }
+    /// @dev x * y, where x is a decimal of base RAY. Rounds to zero if x*y < WAD / 2
+    function rmul(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, y), RAY / 2) / RAY;
+    }
+    /// @dev x / y, where x is a decimal of base RAY. Rounds to zero if x*y < RAY / 2
+    function rdiv(uint x, uint y) internal pure returns (uint z) {
+        z = add(mul(x, RAY), y / 2) / y;
+    }
 
     // --- Administration ---
-    /// @dev A gemJoin ward must call `gemJoin.rely(address(tlm))` as well.
+    /// @dev Add a maturing gem to DssTlm.
+    /// A gemJoin ward must call `gemJoin.rely(address(tlm))` as well.
     function init(bytes32 ilk, address gemJoin) external note auth {
         require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
@@ -135,13 +138,14 @@ contract DssTlm is LibNote, DSTest {
         AuthGemJoinAbstract(gemJoin).gem().approve(gemJoin, uint256(-1));
     }
 
+    /// @dev Set up the ceiling debt or target yield for a maturing gem.
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
         if (what == "line") ilks[ilk].line = data;
         else if (what == "yield") ilks[ilk].yield = data; // yield in wei per second. 5% per year is about 16e10 wei per second.
         else revert("DssTlm/file-unrecognized-param");
     }
 
-    // hope can be used to transfer control of the PSM vault to another contract
+    // hope can be used to transfer control of the TLM vault to another contract
     // This can be used to upgrade the contract
     function hope(address usr) external note auth {
         vat.hope(usr);
@@ -151,6 +155,7 @@ contract DssTlm is LibNote, DSTest {
     }
 
     // --- Primary Functions ---
+    /// @dev Sell maturing gems to DssTlm and receive Dai in exchange
     function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
         MaturingGemAbstract gem = gemJoin.gem();
@@ -162,14 +167,11 @@ contract DssTlm is LibNote, DSTest {
         
         gem.transferFrom(msg.sender, address(this), gemAmt);
         gemJoin.join(address(this), gemAmt);
-        // emit log("\ngemIn: ");
-        // emit log(gemAmt.uintToString());
         vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt), int256(daiAmt));
-        // emit log("\ndaiOut: ");
-        // emit log(daiAmt.uintToString());
         daiJoin.exit(usr, daiAmt);
     }
 
+    /// @dev After maturity, redeem into Dai the maturing gems held by DssTlm, pay any debt to Vat, and send any surplus to Vow
     function redeemGem(bytes32 ilk) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
         MaturingGemAbstract gem = gemJoin.gem();
@@ -185,6 +187,9 @@ contract DssTlm is LibNote, DSTest {
         vat.move(address(this), vow, rad(joy));
     }
 
+    /// @dev ERC3156 Flash Loan callback. Restricted to this contract, through the registered flash lender.
+    /// This function pays the DssTlm debt in Vat with funds previously provided via a flash loan, then extracts the mature gems from Vat,
+    /// and redeems them for Dai, which will repay the flash loan.
     function onFlashLoan(address sender, address token, uint256 amount, uint256 fee, bytes calldata data) external note {
         require(msg.sender == address(flash), "DssTlm/only-dss-flash");
         require(sender == address(this), "DssTlm/only-self");
