@@ -5,6 +5,9 @@ import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
 import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 import { LibNote } from "./dss/lib.sol";
 
+import "./ds-test/test.sol";
+import "./str-utils.sol";
+
 interface AuthGemJoinAbstract {
     function ilk() external view returns (bytes32);
     function gem() external view returns (MaturingGemAbstract);
@@ -14,6 +17,7 @@ interface AuthGemJoinAbstract {
 
 interface MaturingGemAbstract {
     function approve(address spender, uint256 amount) external returns (bool);
+    function allowance(address owner, address spender) external returns (uint256);
     function balanceOf(address usr) external view returns (uint256);
     function maturity() external view returns (uint256);
     function transferFrom(address src, address dst, uint wad) external returns (bool);
@@ -28,7 +32,9 @@ interface FlashAbstract {
 // Term Lending Module
 // Allows anyone to go sell a maturity gem to the TLM at a maturity-adjusted price
 
-contract DssTlm is LibNote {
+contract DssTlm is LibNote, DSTest {
+    using StringUtils for uint256;
+    using StringUtils for bytes32;
 
     // --- Auth ---
     mapping (address => uint256) public wards;
@@ -100,13 +106,13 @@ contract DssTlm is LibNote {
     }
 
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x + y) >= x);
+        require((z = x + y) >= x, "DssTlm/add-overflow");
     }
     function sub(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require((z = x - y) <= x);
+        require((z = x - y) <= x, "DssTlm/sub-overflow");
     }
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
-        require(y == 0 || (z = x * y) / y == x);
+        require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
     }
     //rounds to zero if x*y < WAD / 2
     function rmul(uint x, uint y) internal pure returns (uint z) {
@@ -118,12 +124,12 @@ contract DssTlm is LibNote {
     }
 
     // --- Administration ---
+    /// @dev A gemJoin ward must call `gemJoin.rely(address(tlm))` as well.
     function init(bytes32 ilk, address gemJoin) external note auth {
         require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
 
-        AuthGemJoinAbstract gemJoin_ = AuthGemJoinAbstract(gemJoin);
-        gemJoin_.gem().approve(gemJoin, uint256(-1));
+        AuthGemJoinAbstract(gemJoin).gem().approve(gemJoin, uint256(-1));
     }
 
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
@@ -153,7 +159,11 @@ contract DssTlm is LibNote {
         
         gem.transferFrom(msg.sender, address(this), gemAmt);
         gemJoin.join(address(this), gemAmt);
+        // emit log("\ngemIn: ");
+        // emit log(gemAmt.uintToString());
         vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt), int256(daiAmt));
+        // emit log("\ndaiOut: ");
+        // emit log(daiAmt.uintToString());
         daiJoin.exit(usr, daiAmt);
     }
 

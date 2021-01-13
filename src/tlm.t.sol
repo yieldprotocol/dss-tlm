@@ -11,6 +11,7 @@ import {Vow}              from "./dss/vow.sol";
 import {GemJoin, DaiJoin} from "./dss/join.sol";
 import {Dai}              from "./dss/dai.sol";
 
+import "./str-utils.sol";
 import "./tlm.sol";
 
 interface Hevm {
@@ -19,7 +20,6 @@ interface Hevm {
 }
 
 contract TestFYDai is DSMath, DSToken {
-
     Dai public dai;
     uint256 public maturity;
 
@@ -108,7 +108,9 @@ contract User {
 }
 
 contract DssTlmTest is DSTest {
-    
+    using StringUtils for uint256;
+    using StringUtils for bytes32;
+
     Hevm hevm;
 
     address me;
@@ -164,7 +166,7 @@ contract DssTlmTest is DSTest {
 
         dai = new Dai(0);
 
-        fyDai = new TestFYDai(address(dai), MATURITY, "FYDAI", 18);
+        fyDai = new TestFYDai(address(dai), MATURITY, ilkA, 18);
         fyDai.mint(1000 * FYDAI_WAD);
 
         vat.init(ilkA);
@@ -177,8 +179,6 @@ contract DssTlmTest is DSTest {
         dai.rely(address(daiJoin));
 
         tlm = new DssTlm(address(daiJoin), address(vow), address(flash));
-        // gemJoinA.rely(address(tlm)); Does this need to go into tlm.init()?
-        // gemJoinA.deny(me);
 
         pip = new DSValue();
         pip.poke(bytes32(uint256(1 ether))); // Spot = $1
@@ -206,18 +206,24 @@ contract DssTlmTest is DSTest {
         assertEq(yield, RAY);
     }
 
-
-    /*
-    function test_sellGem_no_fee() public {
+    function test_sellGem_no_yield() public {
+        tlm.init(ilkA, address(gemJoinA));
+        tlm.file(ilkA, "line", 1000 * RAD);
+        gemJoinA.rely(address(tlm));
+        
         assertEq(fyDai.balanceOf(me), 1000 * FYDAI_WAD);
         assertEq(vat.gem(ilkA, me), 0);
         assertEq(vat.dai(me), 0);
         assertEq(dai.balanceOf(me), 0);
         assertEq(vow.Joy(), 0);
 
-        fyDai.approve(address(gemJoinA));
-        tlm.sellGem(me, 100 * FYDAI_WAD);
-
+        fyDai.approve(address(tlm));
+        // emit log("\nDai before: ");
+        // emit log(dai.balanceOf(me).uintToString());
+        tlm.sellGem(ilkA, me, 100 * FYDAI_WAD);
+        // emit log("\nDai after: ");
+        // emit log(dai.balanceOf(me).uintToString());
+        
         assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
         assertEq(vat.gem(ilkA, me), 0);
         assertEq(vat.dai(me), 0);
@@ -231,6 +237,7 @@ contract DssTlmTest is DSTest {
         assertEq(arttlm, 100 ether);
     }
 
+    /*
     function test_sellGem_fee() public {
         tlm.file("tin", TOLL_ONE_PCT);
 
