@@ -225,17 +225,17 @@ contract DssTlmTest is DSTest {
     function test_file_ilk() public {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
-        tlm.file(ilkA, "yield", 1585e15); // 0.05 ray / seconds in a year
+        tlm.file(ilkA, "yield", 1585e6); // 0.05 ether / seconds in a year, in wei
         (,,uint256 line, uint256 yield) = tlm.ilks(ilkA);
         assertEq(line, 1000 * RAD);
-        assertEq(yield, 1585e15);
+        assertEq(yield, 1585e6);
     }
 
     /// @dev Helper function to add an fyDai series to DssTlm
     function setup_gemJoinA() internal {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
-        tlm.file(ilkA, "yield", 1585e15);
+        tlm.file(ilkA, "yield", 1585e6);
         fyDai.approve(address(tlm));
         gemJoinA.rely(address(tlm));
         fyDai.mint(1000 ether); // Give some fyDai to this contract

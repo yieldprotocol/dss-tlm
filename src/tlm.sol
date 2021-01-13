@@ -46,9 +46,9 @@ contract DssTlm is LibNote {
     // --- Data ---
     struct Ilk {
         address gemJoin;
-        uint256 art;                  // Current Debt              [wad]
-        uint256 line;                 // Debt Ceiling              [rad]
-        uint256 yield;                // Target yield, per second  [ray]
+        uint256 art;                  // Current Debt                  [wad]
+        uint256 line;                 // Debt Ceiling                  [rad]
+        uint256 yield;                // Target yield, wei per second  [wad]
     }
 
     VatAbstract immutable public vat;
@@ -103,6 +103,10 @@ contract DssTlm is LibNote {
         }
     }
 
+    /// @dev Convert a wad to a ray
+    function ray(uint256 wad) internal pure returns (uint256) {
+        return wad * 1e9;
+    }
     /// @dev Convert a wad to a rad
     function rad(uint256 wad) internal pure returns (uint256) {
         return wad * RAY;
@@ -141,7 +145,7 @@ contract DssTlm is LibNote {
     /// @dev Set up the ceiling debt or target yield for a maturing gem.
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
         if (what == "line") ilks[ilk].line = data;
-        else if (what == "yield") ilks[ilk].yield = data; // yield in wei per second. 5% per year is about 16e10 wei per second.
+        else if (what == "yield") ilks[ilk].yield = data; // yield in wei per second. 5% per year is about 1585e6 wei per second.
         else revert("DssTlm/file-unrecognized-param");
     }
 
@@ -160,7 +164,7 @@ contract DssTlm is LibNote {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
         MaturingGemAbstract gem = gemJoin.gem();
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
-        uint256 price = rdiv(RAY, rpow(add(RAY, ilks[ilk].yield), time, RAY));
+        uint256 price = rdiv(RAY, rpow(add(RAY, ray(ilks[ilk].yield)), time, RAY));
         uint256 daiAmt = rmul(gemAmt, price);
         ilks[ilk].art = add(ilks[ilk].art, daiAmt);
         require(mul(ilks[ilk].art, RAY) <= ilks[ilk].line, "DssTlm/ceiling-exceeded");
