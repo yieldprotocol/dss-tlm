@@ -19,6 +19,7 @@ interface Hevm {
     function store(address,bytes32,bytes32) external;
 }
 
+/// @dev FYDai are redeemable for Dai at a 1:1 ratio after maturity.
 contract TestFYDai is DSMath, DSToken {
     Dai public dai;
     uint256 public maturity;
@@ -57,10 +58,12 @@ contract TestFYDai is DSMath, DSToken {
     }
 }
 
+/// @dev ERC3156 compliant flash borrowers are able to receive callbacks from ERC3156 flash lenders
 interface ERC3156FlashBorrowerAbstract {
     function onFlashLoan(address sender, address token, uint256 amount, uint256 fee, bytes calldata data) external;
 }
 
+/// @dev ERC3156 compliant Dai flash lender - MIP-25
 contract TestFlash {
     Dai public dai;
 
@@ -90,12 +93,14 @@ contract TestFlash {
     }
 }
 
+/// @dev Mock Vat
 contract TestVat is Vat {
     function mint(address usr, uint256 rad) public {
         dai[usr] += rad;
     }
 }
 
+/// @dev Mock Vow
 contract TestVow is Vow {
     constructor(address vat, address flapper, address flopper)
         public Vow(vat, flapper, flopper) {}
@@ -123,6 +128,7 @@ contract TestVow is Vow {
     }
 } */
 
+/// @dev DssTlm tests
 contract DssTlmTest is DSTest {
     using StringUtils for uint256;
     using StringUtils for bytes32;
@@ -155,14 +161,17 @@ contract DssTlmTest is DSTest {
     uint256 constant RAY = 10 ** 27;
     uint256 constant RAD = 10 ** 45;
 
+    /// @dev Convert a wad to ray
     function ray(uint256 wad) internal pure returns (uint256) {
         return wad * 10 ** 9;
     }
 
+    /// @dev Convert a wad to rad
     function rad(uint256 wad) internal pure returns (uint256) {
         return wad * 10 ** 27;
     }
 
+    /// @dev Set up the testing environment
     function setUp() public {
         me = address(this);
         hevm = Hevm(address(CHEAT_CODE));
@@ -203,12 +212,14 @@ contract DssTlmTest is DSTest {
         dai.transfer(address(flash), 1000 ether); // Funds for flash lending
     }
 
+    /// @dev Test we can add new fyDai series
     function test_init_ilk() public {
         tlm.init(ilkA, address(gemJoinA));
         (address gemJoinAAddress,,,) = tlm.ilks(ilkA);
         assertEq(gemJoinAAddress, address(gemJoinA));
     }
 
+    /// @dev Test we can set the debt ceiling and target yield for registered fyDai series
     function test_file_ilk() public {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
@@ -218,6 +229,7 @@ contract DssTlmTest is DSTest {
         assertEq(yield, 15e10);
     }
 
+    /// @dev Helper function to add an fyDai series to DssTlm
     function setup_gemJoinA() internal {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
@@ -227,6 +239,7 @@ contract DssTlmTest is DSTest {
         fyDai.mint(1000 ether); // Give some fyDai to this contract
     }
 
+    /// @dev Test users can sell fyDai to DssTlm, with a target yield of 0%
     function test_sellGem_no_yield() public {
         setup_gemJoinA();
         tlm.file(ilkA, "yield", 0);
@@ -252,6 +265,7 @@ contract DssTlmTest is DSTest {
         assertEq(arttlm, 100 ether);
     }
 
+    /// @dev Test users can sell fyDai to DssTlm, with a target yield of 15e10 wei per second
     function test_sellGem_yield() public {
         setup_gemJoinA();
 
@@ -278,6 +292,7 @@ contract DssTlmTest is DSTest {
         assertLe(arttlm, 100 ether);
     }
 
+    /// @dev Test that after maturity, DssTlm can redeem the fyDai it holds for Dai, with any surplus going to the Vow
     function test_redeemGem() public {
         setup_gemJoinA();
         tlm.sellGem(ilkA, me, 100 ether);
