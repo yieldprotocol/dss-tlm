@@ -26,7 +26,7 @@ interface MaturingGemAbstract {
 
 interface FlashAbstract {
     function flashFee(address token, uint256 amount) external view returns (uint256);
-    function flashLoan(address receiver, address token, uint256 amount, bytes calldata data) external view returns (uint256);
+    function flashLoan(address receiver, address token, uint256 amount, bytes calldata data) external;
 }
 
 // Term Lending Module
@@ -122,6 +122,9 @@ contract DssTlm is LibNote, DSTest {
     function rdiv(uint x, uint y) internal pure returns (uint z) {
         z = add(mul(x, RAY), y / 2) / y;
     }
+    function rad(uint256 wad) internal pure returns (uint256) {
+        return wad * RAY;
+    }
 
     // --- Administration ---
     /// @dev A gemJoin ward must call `gemJoin.rely(address(tlm))` as well.
@@ -177,7 +180,9 @@ contract DssTlm is LibNote, DSTest {
         uint256 fee = flash.flashFee(address(dai), art);
         dai.approve(address(flash), add(art, fee));
         flash.flashLoan(address(this), address(dai), art, abi.encode(ilk)); // The `onFlashLoan` callback gets executed before the next line
-        vat.move(address(this), vow, dai.balanceOf(address(this))); // Back from the flash loan, if we have any dai left we send it to the vow
+        uint256 joy = dai.balanceOf(address(this));                         // Back from the flash loan, we could have a surplus for the vow
+        daiJoin.join(address(this), joy);
+        vat.move(address(this), vow, rad(joy));
     }
 
     function onFlashLoan(address sender, address token, uint256 amount, uint256 fee, bytes calldata data) external note {
