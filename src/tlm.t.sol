@@ -155,7 +155,8 @@ contract DssTlmTest is DSTest {
 
     bytes32 constant ilkA = "fyDai";
 
-    uint256 constant MATURITY = 1640995199; // Double check this is one year away
+    uint256 constant NOW = 1609459199;
+    uint256 constant MATURITY = 1640995199;
 
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
@@ -175,6 +176,7 @@ contract DssTlmTest is DSTest {
     function setUp() public {
         me = address(this);
         hevm = Hevm(address(CHEAT_CODE));
+        hevm.warp(NOW);
 
         // Deploy DSS
         vat = new TestVat();
@@ -223,17 +225,17 @@ contract DssTlmTest is DSTest {
     function test_file_ilk() public {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
-        tlm.file(ilkA, "yield", 15e10);
+        tlm.file(ilkA, "yield", 1585e15); // 0.05 ray / seconds in a year
         (,,uint256 line, uint256 yield) = tlm.ilks(ilkA);
         assertEq(line, 1000 * RAD);
-        assertEq(yield, 15e10);
+        assertEq(yield, 1585e15);
     }
 
     /// @dev Helper function to add an fyDai series to DssTlm
     function setup_gemJoinA() internal {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
-        tlm.file(ilkA, "yield", 15e10); // Is this 5% yearly?
+        tlm.file(ilkA, "yield", 1585e15);
         fyDai.approve(address(tlm));
         gemJoinA.rely(address(tlm));
         fyDai.mint(1000 ether); // Give some fyDai to this contract
@@ -265,7 +267,7 @@ contract DssTlmTest is DSTest {
         assertEq(arttlm, 100 ether);
     }
 
-    /// @dev Test users can sell fyDai to DssTlm, with a target yield of 15e10 wei per second
+    /// @dev Test users can sell fyDai to DssTlm, with a target yield of 1585e6 wei per second
     function test_sellGem_yield() public {
         setup_gemJoinA();
 
@@ -281,7 +283,7 @@ contract DssTlmTest is DSTest {
         assertEq(vat.gem(ilkA, me), 0);
         assertEq(vat.dai(me), 0);
         assertGe(dai.balanceOf(me), 95 ether); // Should this be very close to 95?
-        assertLe(dai.balanceOf(me), 100 ether);
+        assertLe(dai.balanceOf(me), 96 ether);
         assertEq(vow.Joy(), 0);
         (uint256 inkme, uint256 artme) = vat.urns(ilkA, me);
         assertEq(inkme, 0);
@@ -289,7 +291,7 @@ contract DssTlmTest is DSTest {
         (uint256 inktlm, uint256 arttlm) = vat.urns(ilkA, address(tlm));
         assertEq(inktlm, 100 ether);
         assertGe(arttlm, 95 ether);
-        assertLe(arttlm, 100 ether);
+        assertLe(arttlm, 96 ether);
     }
 
     /// @dev Test that after maturity, DssTlm can redeem the fyDai it holds for Dai, with any surplus going to the Vow
@@ -302,7 +304,7 @@ contract DssTlmTest is DSTest {
         (uint256 ink, uint256 art) = vat.urns(ilkA, address(tlm));
         assertEq(ink, 100 ether);
         assertGe(art, 95 ether);
-        assertLe(art, 100 ether);
+        assertLe(art, 96 ether);
         assertEq(vow.Joy(), 0);
 
         tlm.redeemGem(ilkA);
@@ -310,7 +312,7 @@ contract DssTlmTest is DSTest {
         (ink, art) = vat.urns(ilkA, address(tlm));
         assertEq(ink, 0 ether);
         assertEq(art, 0 ether);
-        assertGe(vow.Joy(), 1);
+        assertGe(vow.Joy(), rad(4 ether));
         assertLe(vow.Joy(), rad(5 ether));
     }
 }
