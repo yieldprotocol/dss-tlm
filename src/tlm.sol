@@ -134,7 +134,7 @@ contract DssTlm is LibNote, DSTest {
 
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
         if (what == "line") ilks[ilk].line = data;
-        else if (what == "yield") ilks[ilk].yield = data;
+        else if (what == "yield") ilks[ilk].yield = data; // yield in wei per second. 5% per year is about 16e10 wei per second.
         else revert("DssTlm/file-unrecognized-param");
     }
 

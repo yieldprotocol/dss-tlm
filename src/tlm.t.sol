@@ -135,7 +135,7 @@ contract DssTlmTest is DSTest {
 
     uint256 constant TOLL_ONE_PCT = 10 ** 16;
     uint256 constant FYDAI_WAD = 10 ** 18;
-    uint256 constant MATURITY = 1640995199;
+    uint256 constant MATURITY = 1640995199; // Double check this is one year away
 
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
@@ -200,15 +200,43 @@ contract DssTlmTest is DSTest {
     function test_file_ilk() public {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
-        tlm.file(ilkA, "yield", RAY);
+        tlm.file(ilkA, "yield", 15e10);
         (,,uint256 line, uint256 yield) = tlm.ilks(ilkA);
         assertEq(line, 1000 * RAD);
-        assertEq(yield, RAY);
+        assertEq(yield, 15e10);
     }
 
     function test_sellGem_no_yield() public {
         tlm.init(ilkA, address(gemJoinA));
         tlm.file(ilkA, "line", 1000 * RAD);
+        gemJoinA.rely(address(tlm));
+        
+        assertEq(fyDai.balanceOf(me), 1000 * FYDAI_WAD);
+        assertEq(vat.gem(ilkA, me), 0);
+        assertEq(vat.dai(me), 0);
+        assertEq(dai.balanceOf(me), 0);
+        assertEq(vow.Joy(), 0);
+
+        fyDai.approve(address(tlm));
+        tlm.sellGem(ilkA, me, 100 * FYDAI_WAD);
+        
+        assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
+        assertEq(vat.gem(ilkA, me), 0);
+        assertEq(vat.dai(me), 0);
+        assertEq(dai.balanceOf(me), 100 ether);
+        assertEq(vow.Joy(), 0);
+        (uint256 inkme, uint256 artme) = vat.urns(ilkA, me);
+        assertEq(inkme, 0);
+        assertEq(artme, 0);
+        (uint256 inktlm, uint256 arttlm) = vat.urns(ilkA, address(tlm));
+        assertEq(inktlm, 100 ether);
+        assertEq(arttlm, 100 ether);
+    }
+
+    function test_sellGem_yield() public {
+        tlm.init(ilkA, address(gemJoinA));
+        tlm.file(ilkA, "line", 1000 * RAD);
+        tlm.file(ilkA, "yield", 15e10); // Is this 5% yearly?
         gemJoinA.rely(address(tlm));
         
         assertEq(fyDai.balanceOf(me), 1000 * FYDAI_WAD);
@@ -227,14 +255,16 @@ contract DssTlmTest is DSTest {
         assertEq(fyDai.balanceOf(me), 900 * FYDAI_WAD);
         assertEq(vat.gem(ilkA, me), 0);
         assertEq(vat.dai(me), 0);
-        assertEq(dai.balanceOf(me), 100 ether);
+        assertGe(dai.balanceOf(me), 95 ether); // Should this be very close to 95?
+        assertLe(dai.balanceOf(me), 100 ether);
         assertEq(vow.Joy(), 0);
         (uint256 inkme, uint256 artme) = vat.urns(ilkA, me);
         assertEq(inkme, 0);
         assertEq(artme, 0);
         (uint256 inktlm, uint256 arttlm) = vat.urns(ilkA, address(tlm));
         assertEq(inktlm, 100 ether);
-        assertEq(arttlm, 100 ether);
+        assertGe(arttlm, 95 ether);
+        assertLe(arttlm, 100 ether);
     }
 
     /*
