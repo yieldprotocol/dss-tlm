@@ -269,7 +269,7 @@ contract DssTlmTest is DSTest {
         assertEq(arttlm, 100 ether);
     }
 
-    /// @dev Test users can sell fyDai to DssTlm, with a target yield of 1585e6 wei per second
+    /// @dev Test users can sell fyDai to DssTlm, with a target yield above 0%
     function test_sellGem_yield() public {
         setup_gemJoinA();
 
