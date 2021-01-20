@@ -30,7 +30,8 @@ interface FlashAbstract {
 }
 
 /// @title Term Lending Module
-/// @dev Allows anyone to go sell a maturity gem to the TLM at a maturity-adjusted price
+/// @dev Allows anyone to sell fyDai to MakerDao at a price determined from a governance  
+/// controlled interest rate.
 contract DssTlm is LibNote {
 
     // --- Auth ---
