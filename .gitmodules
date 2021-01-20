@@ -7,3 +7,30 @@
 [submodule "lib/dss"]
 	path = lib/dss
 	url = https://github.com/hexonaut/dss
+[submodule "ds-test"]
+	path = ds-test
+	url = https://github.com/dapphub/ds-test
+[submodule "dss"]
+	path = dss
+	url = https://github.com/dapphub/dss
+[submodule "dss-interfaces"]
+	path = dss-interfaces
+	url = https://github.com/makerdao/dss-interfaces
+[submodule "ds-token"]
+	path = ds-token
+	url = https://github.com/dapphub/ds-token
+[submodule "ds-value"]
+	path = ds-value
+	url = https://github.com/dapphub/ds-value
+[submodule "ds-thing"]
+	path = ds-thing
+	url = https://github.com/dapphub/ds-thing
+[submodule "ds-math"]
+	path = ds-math
+	url = https://github.com/dapphub/ds-math
+[submodule "ds-auth"]
+	path = ds-auth
+	url = https://github.com/dapphub/ds-auth
+[submodule "ds-note"]
+	path = ds-note
+	url = https://github.com/dapphub/ds-note
