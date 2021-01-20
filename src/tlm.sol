@@ -136,9 +136,10 @@ contract DssTlm is LibNote {
     // --- Administration ---
     /// @dev Add a maturing gem to DssTlm.
     /// A gemJoin ward must call `gemJoin.rely(address(tlm))` as well.
-    function init(bytes32 ilk, address gemJoin) external note auth {
+    function init(bytes32 ilk, address gemJoin, uint256 yield) external note auth {
         require(ilks[ilk].gemJoin == address(0), "DssTlm/ilk-already-init");
         ilks[ilk].gemJoin = gemJoin;
+        ilks[ilk].yield = yield;
 
         AuthGemJoinAbstract(gemJoin).gem().approve(gemJoin, uint256(-1));
     }
