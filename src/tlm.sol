@@ -54,7 +54,6 @@ contract DssTlm is LibNote {
     constructor(address daiJoin_, address vow_) public {
         wards[msg.sender] = 1;
         emit Rely(msg.sender);
-        // AuthGemJoinAbstract gemJoin__ = gemJoin = AuthGemJoinAbstract(gemJoin_);
         DaiJoinAbstract daiJoin__ = daiJoin = DaiJoinAbstract(daiJoin_);
         VatAbstract vat__ = vat = VatAbstract(address(daiJoin__.vat()));
         DaiAbstract dai__ = dai = DaiAbstract(address(daiJoin__.dai()));
@@ -135,7 +134,9 @@ contract DssTlm is LibNote {
 
     /// @dev Set up the ceiling debt or target yield for a maturing gem.
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
-        if (what == "yield") ilks[ilk].yield = data; // 5% per year is 0.05 * RAY / seconds_in_a_year, or about 1585e15.
+        // e.g. 5% per year is (1.05)^(1/seconds_in_a_year) * RAY
+        // which is about 1000000001547125985827094528
+        if (what == "yield") ilks[ilk].yield = data;
         else revert("DssTlm/file-unrecognized-param");
     }
 
@@ -154,8 +155,8 @@ contract DssTlm is LibNote {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
         MaturingGemAbstract gem = gemJoin.gem();
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
-        uint256 price = rdiv(RAY, rpow(add(RAY, ilks[ilk].yield), time, RAY));
-        uint256 daiAmt = rmul(gemAmt, price);
+        uint256 price = rpow(ilks[ilk].yield, time, RAY);
+        uint256 daiAmt = rdiv(gemAmt, price);
 
         gem.transferFrom(msg.sender, address(this), gemAmt);
         gemJoin.join(address(this), gemAmt);

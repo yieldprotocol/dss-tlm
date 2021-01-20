@@ -172,7 +172,7 @@ contract DssTlmTest is DSTest {
 
         vat.rely(address(tlm));
 
-        // Fund fyDai and flash        
+        // Fund fyDai and flash
         vat.hope(address(daiJoin));
         vat.mint(me, rad(1000 ether));
         daiJoin.exit(me, 1000 ether);
@@ -181,7 +181,9 @@ contract DssTlmTest is DSTest {
 
     /// @dev Test we can add new fyDai series
     function test_init_ilk() public {
-        uint256 target = (RAY / (365 * 24 * 60 * 60)) / 20; // 5% = 0.05 * RAY / seconds_in_a_year
+        // 5% per year is (1.05)^(1/seconds_in_a_year) * RAY
+        // which is about 1000000001547125985827094528
+        uint256 target = 1000000001547125985827094528;
         tlm.init(ilkA, address(gemJoinA), target);
         (address gemJoinAAddress,) = tlm.ilks(ilkA);
         assertEq(gemJoinAAddress, address(gemJoinA));
@@ -189,7 +191,10 @@ contract DssTlmTest is DSTest {
 
     /// @dev Test we can set the debt ceiling and target yield for registered fyDai series
     function test_file_ilk() public {
-        uint256 target = (RAY / (365 * 24 * 60 * 60)) / 20; // 5% = 0.05 * RAY / seconds_in_a_year
+        // 5% per year is (1.05)^(1/seconds_in_a_year) * RAY
+        // which is about 1000000001547125985827094528
+        uint256 target = 1000000001547125985827094528;
+
         tlm.init(ilkA, address(gemJoinA), target);
         (, uint256 yield) = tlm.ilks(ilkA);
         assertEq(yield, target);
@@ -197,7 +202,10 @@ contract DssTlmTest is DSTest {
 
     /// @dev Helper function to add an fyDai series to DssTlm
     function setup_gemJoinA() internal {
-        uint256 target = (RAY / (365 * 24 * 60 * 60)) / 20; // 5% = 0.05 * RAY / seconds_in_a_year
+        // 5% per year is (1.05)^(1/seconds_in_a_year) * RAY
+        // which is about 1000000001547125985827094528
+        uint256 target = 1000000001547125985827094528;
+
         tlm.init(ilkA, address(gemJoinA), target);
         fyDai.approve(address(tlm));
         gemJoinA.rely(address(tlm));
@@ -207,7 +215,7 @@ contract DssTlmTest is DSTest {
     /// @dev Test users can sell fyDai to DssTlm, with a target yield of 0%
     function test_sellGem_no_yield() public {
         setup_gemJoinA();
-        tlm.file(ilkA, "yield", 0);
+        tlm.file(ilkA, "yield", RAY);
 
         assertEq(fyDai.balanceOf(me), 1000 ether);
         assertEq(vat.gem(ilkA, me), 0);
@@ -216,7 +224,7 @@ contract DssTlmTest is DSTest {
         assertEq(vow.Joy(), 0);
 
         tlm.sellGem(ilkA, me, 100 ether);
-        
+
         assertEq(fyDai.balanceOf(me), 900 ether);
         assertEq(vat.gem(ilkA, me), 0);
         assertEq(vat.dai(me), 0);
@@ -241,7 +249,7 @@ contract DssTlmTest is DSTest {
         assertEq(vow.Joy(), 0);
 
         tlm.sellGem(ilkA, me, 100 ether);
-        
+
         assertEq(fyDai.balanceOf(me), 900 ether);
         assertEq(vat.gem(ilkA, me), 0);
         assertEq(vat.dai(me), 0);
