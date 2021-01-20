@@ -5,6 +5,7 @@ import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
 import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 import { LibNote } from "./dss/lib.sol";
 
+
 /// @dev A GemJoin with restricted `join` access.
 interface AuthGemJoinAbstract {
     function ilk() external view returns (bytes32);
@@ -173,7 +174,7 @@ contract DssTlm is LibNote {
 
         // Take the fyDai from vat, and repay as much debt as possible
         (, uint256 art) = vat.urns(ilk, address(this));
-        vat.frob(ilk, address(this), address(this), address(this), -int256(amt < art ? amt : art), -int256(amt));
+        vat.frob(ilk, address(this), address(this), address(this), -int256(amt), -int256(amt < art ? amt : art));
         gemJoin.exit(usr, amt);
 
         // Collect surplus, if any, in vow

@@ -276,6 +276,10 @@ contract DssTlmTest is DSTest {
         assertLe(art, 96 ether);
         assertEq(vow.Joy(), 0);
 
+        vat.mint(me, rad(100 ether));
+        daiJoin.exit(me, 100 ether);
+        
+        dai.approve(address(tlm), 100 ether);
         tlm.buyGem(ilkA, me, 100 ether);
 
         (ink, art) = vat.urns(ilkA, address(tlm));
