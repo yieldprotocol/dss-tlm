@@ -67,6 +67,7 @@ contract DssTlm is LibNote {
     // --- Math ---
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
+    uint256 constant MAXINT256 = 57896044618658097711785492504343953926634992332820282019728792003956564819967;
 
     /// @dev Power of a base-decimal x to an integer n.
     function rpow(uint x, uint n, uint base) internal pure returns (uint z) {
@@ -93,13 +94,10 @@ contract DssTlm is LibNote {
         }
     }
 
-    /// @dev Convert a wad to a ray
-    function ray(uint256 wad) internal pure returns (uint256) {
-        return wad * 1e9;
-    }
-    /// @dev Convert a wad to a rad
-    function rad(uint256 wad) internal pure returns (uint256) {
-        return wad * RAY;
+    /// @dev Overflow-protected casting
+    function toInt256(uint256 x) internal pure returns (int256) {
+        require(x <= MAXINT256, "DssTlm/int256-overflow");
+        return(int256(x));
     }
     /// @dev Overflow-protected x + y
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
@@ -112,10 +110,6 @@ contract DssTlm is LibNote {
     /// @dev Overflow-protected x * y
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
-    }
-    /// @dev x * y, where x is a decimal of base RAY. Rounds to zero if x*y < WAD / 2
-    function rmul(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, y), RAY / 2) / RAY;
     }
     /// @dev x / y, where x is a decimal of base RAY. Rounds to zero if x*y < RAY / 2
     function rdiv(uint x, uint y) internal pure returns (uint z) {
@@ -161,7 +155,7 @@ contract DssTlm is LibNote {
 
         gem.transferFrom(msg.sender, address(this), gemAmt);
         gemJoin.join(address(this), gemAmt);
-        vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt), int256(daiAmt));
+        vat.frob(ilk, address(this), address(this), address(this), toInt256(gemAmt), toInt256(daiAmt));
         daiJoin.exit(usr, daiAmt);
     }
 
@@ -174,7 +168,7 @@ contract DssTlm is LibNote {
 
         // Take the fyDai from vat, and repay as much debt as possible
         (, uint256 art) = vat.urns(ilk, address(this));
-        vat.frob(ilk, address(this), address(this), address(this), -int256(amt), -int256(amt < art ? amt : art));
+        vat.frob(ilk, address(this), address(this), address(this), -toInt256(amt), -toInt256(amt < art ? amt : art));
         gemJoin.exit(usr, amt);
 
         // Collect surplus, if any, in vow
