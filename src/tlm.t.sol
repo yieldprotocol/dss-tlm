@@ -265,12 +265,10 @@ contract DssTlmTest is DSTest {
         assertLe(arttlm, 96 ether);
     }
 
-    /// @dev Test that after maturity, DssTlm can redeem the fyDai it holds for Dai, with any surplus going to the Vow
-    function test_redeemGem() public {
+    /// @dev Test users can buy fyDai at a price of 1 Dai
+    function test_buyGem() public {
         setup_gemJoinA();
         tlm.sellGem(ilkA, me, 100 ether);
-
-        hevm.warp(MATURITY);
 
         (uint256 ink, uint256 art) = vat.urns(ilkA, address(tlm));
         assertEq(ink, 100 ether);
@@ -278,7 +276,7 @@ contract DssTlmTest is DSTest {
         assertLe(art, 96 ether);
         assertEq(vow.Joy(), 0);
 
-        tlm.redeemGem(ilkA);
+        tlm.buyGem(ilkA, me, 100 ether);
 
         (ink, art) = vat.urns(ilkA, address(tlm));
         assertEq(ink, 0 ether);

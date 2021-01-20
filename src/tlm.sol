@@ -164,23 +164,19 @@ contract DssTlm is LibNote {
         daiJoin.exit(usr, daiAmt);
     }
 
-    /// @dev After maturity, redeem into Dai the maturing gems held by DssTlm, pay any debt to Vat, and send any surplus to Vow
-    function redeemGem(bytes32 ilk) external note {
+    /// @dev Buy maturing gems from DssTlm at a price of 1 Dai
+    function buyGem(bytes32 ilk, address usr, uint256 amt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
-        MaturingGemAbstract gem = gemJoin.gem();
-        require(block.timestamp >= gem.maturity(), "DssTlm/not-mature");
 
-        // grab fydai and redeem into dai
-        (uint256 ink, uint256 art) = vat.urns(ilk, address(this));
-        vat.grab(ilk, address(this), address(this), address(this), -int(ink), -int(art));
-        gemJoin.exit(address(this), ink);
-        gem.redeem(address(this), address(this), ink);
+        dai.transferFrom(msg.sender, address(this), amt);
+        daiJoin.join(address(this), amt);
 
-        // repay debt
-        daiJoin.join(address(this), dai.balanceOf(address(this)));
-        vat.heal(vat.sin(address(this)));
+        // Take the fyDai from vat, and repay as much debt as possible
+        (, uint256 art) = vat.urns(ilk, address(this));
+        vat.frob(ilk, address(this), address(this), address(this), -int256(amt < art ? amt : art), -int256(amt));
+        gemJoin.exit(usr, amt);
 
-        // collect surplus in vow
-        vat.move(address(this), vow, vat.dai(address(this)));
+        // Collect surplus, if any, in vow
+        if (amt > art) vat.move(address(this), vow, vat.dai(address(this)));
     }
 }
