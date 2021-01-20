@@ -58,40 +58,6 @@ contract TestFYDai is DSMath, DSToken {
     }
 }
 
-/// @dev ERC3156 compliant flash borrowers are able to receive callbacks from ERC3156 flash lenders
-interface ERC3156FlashBorrowerAbstract {
-    function onFlashLoan(address sender, address token, uint256 amount, uint256 fee, bytes calldata data) external;
-}
-
-/// @dev ERC3156 compliant Dai flash lender - MIP-25
-contract TestFlash {
-    Dai public dai;
-
-    uint256 public feePercentage;
-
-    constructor(address dai_) public {
-        dai = Dai(dai_);
-    }
-
-    function setFeePercentage(uint256 feePercentage_) public {
-        feePercentage = feePercentage_;
-    }
-
-    function maxFlashSupply(address token) public view returns (uint256) {
-        return dai.balanceOf(address(this));
-    }
-
-    function flashFee(address token, uint256 amount) public view returns (uint256) {
-        return amount * feePercentage / 100;
-    }
-
-    function flashLoan(address receiver, address token, uint256 amount, bytes calldata data) external {
-        uint256 fee = flashFee(token, amount);
-        dai.transfer(receiver, amount);
-        ERC3156FlashBorrowerAbstract(receiver).onFlashLoan(msg.sender, token, amount, fee, data);
-        dai.transferFrom(receiver, address(this), amount + fee);
-    }
-}
 
 /// @dev Mock Vat
 contract TestVat is Vat {
@@ -144,7 +110,6 @@ contract DssTlmTest is DSTest {
     TestFYDai fyDai;
     DaiJoin daiJoin;
     Dai dai;
-    TestFlash flash;
 
     AuthGemJoin gemJoinA;
     DssTlm tlm;
@@ -185,12 +150,11 @@ contract DssTlmTest is DSTest {
         pip = new DSValue();
         dai = new Dai(0);
         daiJoin = new DaiJoin(address(vat), address(dai));
-        flash = new TestFlash(address(dai));
 
         // Deploy DssTlm
         fyDai = new TestFYDai(address(dai), MATURITY, ilkA, 18);
         gemJoinA = new AuthGemJoin(address(vat), ilkA, address(fyDai));
-        tlm = new DssTlm(address(daiJoin), address(vow), address(flash));
+        tlm = new DssTlm(address(daiJoin), address(vow));
 
         // Init DSS
         vat.rely(address(spot));
@@ -206,19 +170,20 @@ contract DssTlmTest is DSTest {
         vat.file(ilkA, "line", rad(1000 ether));
         vat.file("Line",      rad(1000 ether));
 
+        vat.rely(address(tlm));
+
         // Fund fyDai and flash        
         vat.hope(address(daiJoin));
-        vat.mint(me, rad(2000 ether));
-        daiJoin.exit(me, 2000 ether);
+        vat.mint(me, rad(1000 ether));
+        daiJoin.exit(me, 1000 ether);
         dai.transfer(address(fyDai), 1000 ether); // Funds for redeeming
-        dai.transfer(address(flash), 1000 ether); // Funds for flash lending
     }
 
     /// @dev Test we can add new fyDai series
     function test_init_ilk() public {
         uint256 target = (RAY / (365 * 24 * 60 * 60)) / 20; // 5% = 0.05 * RAY / seconds_in_a_year
         tlm.init(ilkA, address(gemJoinA), target);
-        (address gemJoinAAddress,,,) = tlm.ilks(ilkA);
+        (address gemJoinAAddress,) = tlm.ilks(ilkA);
         assertEq(gemJoinAAddress, address(gemJoinA));
     }
 
@@ -226,9 +191,7 @@ contract DssTlmTest is DSTest {
     function test_file_ilk() public {
         uint256 target = (RAY / (365 * 24 * 60 * 60)) / 20; // 5% = 0.05 * RAY / seconds_in_a_year
         tlm.init(ilkA, address(gemJoinA), target);
-        tlm.file(ilkA, "line", 1000 * RAD);
-        (,,uint256 line, uint256 yield) = tlm.ilks(ilkA);
-        assertEq(line, 1000 * RAD);
+        (, uint256 yield) = tlm.ilks(ilkA);
         assertEq(yield, target);
     }
 
@@ -236,7 +199,6 @@ contract DssTlmTest is DSTest {
     function setup_gemJoinA() internal {
         uint256 target = (RAY / (365 * 24 * 60 * 60)) / 20; // 5% = 0.05 * RAY / seconds_in_a_year
         tlm.init(ilkA, address(gemJoinA), target);
-        tlm.file(ilkA, "line", 1000 * RAD);
         fyDai.approve(address(tlm));
         gemJoinA.rely(address(tlm));
         fyDai.mint(1000 ether); // Give some fyDai to this contract
