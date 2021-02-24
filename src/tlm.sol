@@ -5,6 +5,7 @@ import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
 import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 import { LibNote } from "./dss/lib.sol";
 
+
 /// @dev A GemJoin with restricted `join` access.
 interface AuthGemJoinAbstract {
     function ilk() external view returns (bytes32);
@@ -66,6 +67,7 @@ contract DssTlm is LibNote {
     // --- Math ---
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
+    uint256 constant MAXINT256 = 57896044618658097711785492504343953926634992332820282019728792003956564819967;
 
     /// @dev Power of a base-decimal x to an integer n.
     function rpow(uint x, uint n, uint base) internal pure returns (uint z) {
@@ -92,13 +94,10 @@ contract DssTlm is LibNote {
         }
     }
 
-    /// @dev Convert a wad to a ray
-    function ray(uint256 wad) internal pure returns (uint256) {
-        return wad * 1e9;
-    }
-    /// @dev Convert a wad to a rad
-    function rad(uint256 wad) internal pure returns (uint256) {
-        return wad * RAY;
+    /// @dev Overflow-protected casting
+    function toInt256(uint256 x) internal pure returns (int256) {
+        require(x <= MAXINT256, "DssTlm/int256-overflow");
+        return(int256(x));
     }
     /// @dev Overflow-protected x + y
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
@@ -111,10 +110,6 @@ contract DssTlm is LibNote {
     /// @dev Overflow-protected x * y
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
-    }
-    /// @dev x * y, where x is a decimal of base RAY. Rounds to zero if x*y < WAD / 2
-    function rmul(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, y), RAY / 2) / RAY;
     }
     /// @dev x / y, where x is a decimal of base RAY. Rounds to zero if x*y < RAY / 2
     function rdiv(uint x, uint y) internal pure returns (uint z) {
@@ -160,27 +155,23 @@ contract DssTlm is LibNote {
 
         gem.transferFrom(msg.sender, address(this), gemAmt);
         gemJoin.join(address(this), gemAmt);
-        vat.frob(ilk, address(this), address(this), address(this), int256(gemAmt), int256(daiAmt));
+        vat.frob(ilk, address(this), address(this), address(this), toInt256(gemAmt), toInt256(daiAmt));
         daiJoin.exit(usr, daiAmt);
     }
 
-    /// @dev After maturity, redeem into Dai the maturing gems held by DssTlm, pay any debt to Vat, and send any surplus to Vow
-    function redeemGem(bytes32 ilk) external note {
+    /// @dev Buy maturing gems from DssTlm at a price of 1 Dai
+    function buyGem(bytes32 ilk, address usr, uint256 amt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
-        MaturingGemAbstract gem = gemJoin.gem();
-        require(block.timestamp >= gem.maturity(), "DssTlm/not-mature");
 
-        // grab fydai and redeem into dai
-        (uint256 ink, uint256 art) = vat.urns(ilk, address(this));
-        vat.grab(ilk, address(this), address(this), address(this), -int(ink), -int(art));
-        gemJoin.exit(address(this), ink);
-        gem.redeem(address(this), address(this), ink);
+        dai.transferFrom(msg.sender, address(this), amt);
+        daiJoin.join(address(this), amt);
 
-        // repay debt
-        daiJoin.join(address(this), dai.balanceOf(address(this)));
-        vat.heal(vat.sin(address(this)));
+        // Take the fyDai from vat, and repay as much debt as possible
+        (, uint256 art) = vat.urns(ilk, address(this));
+        vat.frob(ilk, address(this), address(this), address(this), -toInt256(amt), -toInt256(amt < art ? amt : art));
+        gemJoin.exit(usr, amt);
 
-        // collect surplus in vow
-        vat.move(address(this), vow, vat.dai(address(this)));
+        // Collect surplus, if any, in vow
+        if (amt > art) vat.move(address(this), vow, vat.dai(address(this)));
     }
 }
