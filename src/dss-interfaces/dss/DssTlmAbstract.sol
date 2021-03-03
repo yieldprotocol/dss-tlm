@@ -2,7 +2,7 @@
 pragma solidity ^0.6.10;
 
 interface DssTlmAbstract {
-	  mapping (address => uint256) public wards;
+	mapping (address => uint256) public wards;
     function rely(address usr) external auth { wards[usr] = 1; emit Rely(usr); }
     function deny(address usr) external auth { wards[usr] = 0; emit Deny(usr); }
     VatAbstract immutable public vat;
