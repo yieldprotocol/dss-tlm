@@ -1,4 +1,3 @@
-// SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.6.10;
 
 import "./VatAbstract.sol";
@@ -6,14 +5,14 @@ import "./DaiJoinAbstract.sol";
 import "./DaiAbstract.sol";
 
 interface DssTlmAbstract {
-	mapping (address => uint256) public wards;
+	function wards(address) external view returns (uint256);
     function rely(address usr) external;
     function deny(address usr) external;
-    VatAbstract immutable public vat;
-    DaiJoinAbstract immutable public daiJoin;
-    DaiAbstract immutable public dai;
-    address immutable public vow;
-    mapping (bytes32 => Ilk) public ilks; // Registered maturing gems
+    function vat() external view returns (VatAbstract);
+    function daiJoin() external view returns (DaiJoinAbstract);
+    function dai() external view returns (DaiAbstract);
+    function vow() external view returns (address);
+    function ilks(bytes32) external view returns(address, uint256); // Registered maturing gems
 
     function init(bytes32 ilk, address gemJoin, uint256 yield) external;
     function file(bytes32 ilk, bytes32 what, uint256 data) external;
