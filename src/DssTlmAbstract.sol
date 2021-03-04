@@ -5,7 +5,7 @@ import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
 import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 
 interface DssTlmAbstract {
-	function wards(address) external view returns (uint256);
+    function wards(address) external view returns (uint256);
     function rely(address usr) external;
     function deny(address usr) external;
     function vat() external view returns (VatAbstract);
