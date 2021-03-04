@@ -1,10 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 pragma solidity ^0.6.10;
 
+import "./VatAbstract.sol";
+import "./DaiJoinAbstract.sol";
+import "./DaiAbstract.sol";
+
 interface DssTlmAbstract {
 	mapping (address => uint256) public wards;
-    function rely(address usr) external auth { wards[usr] = 1; emit Rely(usr); }
-    function deny(address usr) external auth { wards[usr] = 0; emit Deny(usr); }
+    function rely(address usr) external;
+    function deny(address usr) external;
     VatAbstract immutable public vat;
     DaiJoinAbstract immutable public daiJoin;
     DaiAbstract immutable public dai;
