@@ -1,8 +1,8 @@
-pragma solidity ^0.6.10;
+pragma solidity ^0.6.7;
 
-import "./VatAbstract.sol";
-import "./DaiJoinAbstract.sol";
-import "./DaiAbstract.sol";
+import { DaiJoinAbstract } from "./dss-interfaces/dss/DaiJoinAbstract.sol";
+import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
+import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
 
 interface DssTlmAbstract {
 	function wards(address) external view returns (uint256);
