@@ -146,7 +146,7 @@ contract DssTlm is LibNote {
 
     // --- Primary Functions ---
     /// @dev Sell maturing gems to DssTlm and receive Dai in exchange
-    function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note {
+    function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note returns (uint256) {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
         MaturingGemAbstract gem = gemJoin.gem();
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
@@ -157,6 +157,8 @@ contract DssTlm is LibNote {
         gemJoin.join(address(this), gemAmt);
         vat.frob(ilk, address(this), address(this), address(this), toInt256(gemAmt), toInt256(daiAmt));
         daiJoin.exit(usr, daiAmt);
+
+        return daiAmt;
     }
 
     /// @dev Buy maturing gems from DssTlm at a price of 1 Dai
