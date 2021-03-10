@@ -1,0 +1,27 @@
+{
+  "name": "@yield-protocol/dss-tlm",
+  "version": "0.0.1",
+  "description": "Solidity interface for the DSS Term Lending Module",
+  "author": "Yield Inc.",
+  "files": [
+    "src/DssTlmAbstract.sol",
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "homepage": "https://yield.is",
+  "repository": {
+    "url": "https://github.com/yieldprotocol/dss-tlm",
+    "type": "git"
+  },
+  "bugs": {
+    "url": "https://github.com/yieldprotocol/dss-tlm/issues"
+  },
+  "engines": {
+    "node": ">=10"
+  },
+  "scripts": {
+    "prepublishOnly": "npx tsdx build --tsconfig ./tsconfig-publish.json"
+  },
+  "license": "GPL-3.0-or-later"
+}
