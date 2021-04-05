@@ -109,9 +109,9 @@ contract DssTlm is LibNote {
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
     }
-    /// @dev x / y, where x is a decimal of base RAY. Rounds to zero if x*y < RAY / 2
+    /// @dev x / y, where x is a decimal of base RAY. Rounds down
     function rdiv(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, RAY), y / 2) / y;
+        z = mul(x, RAY) / y;
     }
 
     // --- Administration ---
