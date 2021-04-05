@@ -1,4 +1,4 @@
-pragma solidity ^0.6.7;
+pragma solidity >=0.6.5;
 
 import { DaiJoinAbstract } from "./dss-interfaces/dss/DaiJoinAbstract.sol";
 import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
@@ -8,18 +8,34 @@ import { LibNote } from "./dss/lib.sol";
 
 /// @dev A GemJoin with restricted `join` access.
 interface AuthGemJoinAbstract {
+    /// @dev The ilk associated to this Join.
     function ilk() external view returns (bytes32);
+
+    /// @dev The token contract associated to this Join. 
     function gem() external view returns (MaturingGemAbstract);
+
+    /// @dev Pull gems from the user into the Join.
     function join(address, uint256) external;
+
+    /// @dev Push gems from the Join to the user.
     function exit(address, uint256) external;
 }
 
-/// @dev An ERC20 that can mature and be redeemed, such as fyDai
+/// @dev A gem that can mature and be redeemed, such as fyDai
 interface MaturingGemAbstract {
-    function approve(address spender, uint256 amount) external returns (bool);
+    /// @dev Gem balance of user.
     function balanceOf(address usr) external view returns (uint256);
-    function maturity() external view returns (uint256);
+
+    /// @dev Allow spender to manage amount gem from caller.
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /// @dev Pull gems from src to dst.
     function transferFrom(address src, address dst, uint wad) external returns (bool);
+
+    /// @dev Time from which redemptions are allowed.
+    function maturity() external view returns (uint256);
+
+    /// @dev Burn amount of gem and push underlying to dst.
     function redeem(address src, address dst, uint256 amount) external returns (uint256);
 }
 
@@ -67,7 +83,6 @@ contract DssTlm is LibNote {
     // --- Math ---
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
-    uint256 constant MAXINT256 = 57896044618658097711785492504343953926634992332820282019728792003956564819967;
 
     /// @dev Power of a base-decimal x to an integer n.
     function rpow(uint x, uint n, uint base) internal pure returns (uint z) {
@@ -95,9 +110,8 @@ contract DssTlm is LibNote {
     }
 
     /// @dev Overflow-protected casting
-    function toInt256(uint256 x) internal pure returns (int256) {
-        require(x <= MAXINT256, "DssTlm/int256-overflow");
-        return(int256(x));
+    function toInt256(uint256 x) internal pure returns (int256 z) {
+        require((z = int256(x)) >= 0, "DssTlm/int256-overflow");
     }
     /// @dev Overflow-protected x + y
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
@@ -111,9 +125,9 @@ contract DssTlm is LibNote {
     function mul(uint256 x, uint256 y) internal pure returns (uint256 z) {
         require(y == 0 || (z = x * y) / y == x, "DssTlm/mul-overflow");
     }
-    /// @dev x / y, where x is a decimal of base RAY. Rounds to zero if x*y < RAY / 2
+    /// @dev x / y, where x is a decimal of base RAY. Rounds down
     function rdiv(uint x, uint y) internal pure returns (uint z) {
-        z = add(mul(x, RAY), y / 2) / y;
+        z = mul(x, RAY) / y;
     }
 
     // --- Administration ---
@@ -127,7 +141,7 @@ contract DssTlm is LibNote {
         AuthGemJoinAbstract(gemJoin).gem().approve(gemJoin, uint256(-1));
     }
 
-    /// @dev Set up the ceiling debt or target yield for a maturing gem.
+    /// @dev Set up the target yield for a maturing gem.
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
         // e.g. 5% per year is (1.05)^(1/seconds_in_a_year) * RAY
         // which is about 1000000001547125985827094528
@@ -135,11 +149,12 @@ contract DssTlm is LibNote {
         else revert("DssTlm/file-unrecognized-param");
     }
 
-    // hope can be used to transfer control of the TLM vault to another contract
-    // This can be used to upgrade the contract
+    /// @dev hope can be used to transfer control of the TLM vault to another contract
+    /// This can be used to upgrade the contract
     function hope(address usr) external note auth {
         vat.hope(usr);
     }
+    /// @dev Revokes the rights given with `hope`
     function nope(address usr) external note auth {
         vat.nope(usr);
     }
@@ -148,12 +163,14 @@ contract DssTlm is LibNote {
     /// @dev Sell maturing gems to DssTlm and receive Dai in exchange
     function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note returns (uint256) {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
+        require(address(gemJoin) != address(0), "DssTlm/ilk-not-init");
+
         MaturingGemAbstract gem = gemJoin.gem();
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
         uint256 price = rpow(ilks[ilk].yield, time, RAY);
         uint256 daiAmt = rdiv(gemAmt, price);
 
-        gem.transferFrom(msg.sender, address(this), gemAmt);
+        require(gem.transferFrom(msg.sender, address(this), gemAmt), "DssTlm/failed-transfer");
         gemJoin.join(address(this), gemAmt);
         vat.frob(ilk, address(this), address(this), address(this), toInt256(gemAmt), toInt256(daiAmt));
         daiJoin.exit(usr, daiAmt);
@@ -164,8 +181,9 @@ contract DssTlm is LibNote {
     /// @dev Buy maturing gems from DssTlm at a price of 1 Dai
     function buyGem(bytes32 ilk, address usr, uint256 amt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
+        require(address(gemJoin) != address(0), "DssTlm/ilk-not-init");
 
-        dai.transferFrom(msg.sender, address(this), amt);
+        require(dai.transferFrom(msg.sender, address(this), amt), "DssTlm/failed-transfer");
         daiJoin.join(address(this), amt);
 
         // Take the fyDai from vat, and repay as much debt as possible
