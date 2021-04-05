@@ -146,6 +146,8 @@ contract DssTlm is LibNote {
     /// @dev Sell maturing gems to DssTlm and receive Dai in exchange
     function sellGem(bytes32 ilk, address usr, uint256 gemAmt) external note returns (uint256) {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
+        require(address(gemJoin) != address(0), "DssTlm/ilk-not-init");
+
         MaturingGemAbstract gem = gemJoin.gem();
         uint256 time = sub(gem.maturity(), block.timestamp); // Reverts after maturity
         uint256 price = rpow(ilks[ilk].yield, time, RAY);
@@ -162,6 +164,7 @@ contract DssTlm is LibNote {
     /// @dev Buy maturing gems from DssTlm at a price of 1 Dai
     function buyGem(bytes32 ilk, address usr, uint256 amt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
+        require(address(gemJoin) != address(0), "DssTlm/ilk-not-init");
 
         require(dai.transferFrom(msg.sender, address(this), amt), "DssTlm/failed-transfer");
         daiJoin.join(address(this), amt);
