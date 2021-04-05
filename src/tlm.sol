@@ -151,7 +151,7 @@ contract DssTlm is LibNote {
         uint256 price = rpow(ilks[ilk].yield, time, RAY);
         uint256 daiAmt = rdiv(gemAmt, price);
 
-        gem.transferFrom(msg.sender, address(this), gemAmt);
+        require(gem.transferFrom(msg.sender, address(this), gemAmt), "DssTlm/failed-transfer");
         gemJoin.join(address(this), gemAmt);
         vat.frob(ilk, address(this), address(this), address(this), toInt256(gemAmt), toInt256(daiAmt));
         daiJoin.exit(usr, daiAmt);
@@ -163,7 +163,7 @@ contract DssTlm is LibNote {
     function buyGem(bytes32 ilk, address usr, uint256 amt) external note {
         AuthGemJoinAbstract gemJoin = AuthGemJoinAbstract(ilks[ilk].gemJoin);
 
-        dai.transferFrom(msg.sender, address(this), amt);
+        require(dai.transferFrom(msg.sender, address(this), amt), "DssTlm/failed-transfer");
         daiJoin.join(address(this), amt);
 
         // Take the fyDai from vat, and repay as much debt as possible
