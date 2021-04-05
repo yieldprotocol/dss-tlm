@@ -1,4 +1,4 @@
-pragma solidity ^0.6.7;
+pragma solidity >=0.6.5;
 
 import { DaiJoinAbstract } from "./dss-interfaces/dss/DaiJoinAbstract.sol";
 import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
