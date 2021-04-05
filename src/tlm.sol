@@ -8,18 +8,34 @@ import { LibNote } from "./dss/lib.sol";
 
 /// @dev A GemJoin with restricted `join` access.
 interface AuthGemJoinAbstract {
+    /// @dev The ilk associated to this Join.
     function ilk() external view returns (bytes32);
+
+    /// @dev The token contract associated to this Join. 
     function gem() external view returns (MaturingGemAbstract);
+
+    /// @dev Pull gems from the user into the Join.
     function join(address, uint256) external;
+
+    /// @dev Push gems from the Join to the user.
     function exit(address, uint256) external;
 }
 
-/// @dev An ERC20 that can mature and be redeemed, such as fyDai
+/// @dev A gem that can mature and be redeemed, such as fyDai
 interface MaturingGemAbstract {
-    function approve(address spender, uint256 amount) external returns (bool);
+    /// @dev Gem balance of user.
     function balanceOf(address usr) external view returns (uint256);
-    function maturity() external view returns (uint256);
+
+    /// @dev Allow spender to manage amount gem from caller.
+    function approve(address spender, uint256 amount) external returns (bool);
+
+    /// @dev Pull gems from src to dst.
     function transferFrom(address src, address dst, uint wad) external returns (bool);
+
+    /// @dev Time from which redemptions are allowed.
+    function maturity() external view returns (uint256);
+
+    /// @dev Burn amount of gem and push underlying to dst.
     function redeem(address src, address dst, uint256 amount) external returns (uint256);
 }
 
