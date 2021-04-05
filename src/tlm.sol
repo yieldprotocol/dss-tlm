@@ -125,7 +125,7 @@ contract DssTlm is LibNote {
         AuthGemJoinAbstract(gemJoin).gem().approve(gemJoin, uint256(-1));
     }
 
-    /// @dev Set up the ceiling debt or target yield for a maturing gem.
+    /// @dev Set up the target yield for a maturing gem.
     function file(bytes32 ilk, bytes32 what, uint256 data) external note auth {
         // e.g. 5% per year is (1.05)^(1/seconds_in_a_year) * RAY
         // which is about 1000000001547125985827094528
