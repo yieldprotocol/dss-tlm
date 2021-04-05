@@ -67,7 +67,6 @@ contract DssTlm is LibNote {
     // --- Math ---
     uint256 constant WAD = 10 ** 18;
     uint256 constant RAY = 10 ** 27;
-    uint256 constant MAXINT256 = 57896044618658097711785492504343953926634992332820282019728792003956564819967;
 
     /// @dev Power of a base-decimal x to an integer n.
     function rpow(uint x, uint n, uint base) internal pure returns (uint z) {
@@ -95,9 +94,8 @@ contract DssTlm is LibNote {
     }
 
     /// @dev Overflow-protected casting
-    function toInt256(uint256 x) internal pure returns (int256) {
-        require(x <= MAXINT256, "DssTlm/int256-overflow");
-        return(int256(x));
+    function toInt256(uint256 x) internal pure returns (int256 z) {
+        require((z = int256(x)) >= 0, "DssTlm/int256-overflow");
     }
     /// @dev Overflow-protected x + y
     function add(uint256 x, uint256 y) internal pure returns (uint256 z) {
