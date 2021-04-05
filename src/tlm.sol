@@ -133,11 +133,12 @@ contract DssTlm is LibNote {
         else revert("DssTlm/file-unrecognized-param");
     }
 
-    // hope can be used to transfer control of the TLM vault to another contract
-    // This can be used to upgrade the contract
+    /// @dev hope can be used to transfer control of the TLM vault to another contract
+    /// This can be used to upgrade the contract
     function hope(address usr) external note auth {
         vat.hope(usr);
     }
+    /// @dev Revokes the rights given with `hope`
     function nope(address usr) external note auth {
         vat.nope(usr);
     }
