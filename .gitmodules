@@ -4,9 +4,6 @@
 [submodule "lib/ds-test"]
 	path = lib/ds-test
 	url = https://github.com/dapphub/ds-test
-[submodule "lib/dss"]
-	path = lib/dss
-	url = https://github.com/hexonaut/dss
 [submodule "ds-test"]
 	path = ds-test
 	url = https://github.com/dapphub/ds-test
@@ -38,3 +35,14 @@
 	path = lib/forge-std
 	url = https://github.com/foundry-rs/forge-std
 	branch = v1.4.0
+[submodule "lib/dss-gem-joins"]
+	path = lib/dss-gem-joins
+	url = https://github.com/makerdao/dss-gem-joins
+	branch = 1.2.10
+[submodule "lib/dss"]
+	path = lib/dss
+	url = https://github.com/makerdao/dss
+	branch = c103b30
+[submodule "lib/ds-math"]
+	path = lib/ds-math
+	url = https://github.com/dapphub/ds-math

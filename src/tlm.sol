@@ -1,9 +1,9 @@
 pragma solidity ^0.6.7;
 
-import { DaiJoinAbstract } from "./dss-interfaces/dss/DaiJoinAbstract.sol";
-import { DaiAbstract } from "./dss-interfaces/dss/DaiAbstract.sol";
-import { VatAbstract } from "./dss-interfaces/dss/VatAbstract.sol";
-import { LibNote } from "./dss/lib.sol";
+import { DaiJoinAbstract } from "../lib/dss-interfaces/src/dss/DaiJoinAbstract.sol";
+import { DaiAbstract } from "../lib/dss-interfaces/src/dss/DaiAbstract.sol";
+import { VatAbstract } from "../lib/dss-interfaces/src/dss/VatAbstract.sol";
+import { LibNote } from "../lib/dss/src/lib.sol";
 
 
 /// @dev A GemJoin with restricted `join` access.

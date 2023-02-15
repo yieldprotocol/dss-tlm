@@ -1,18 +1,18 @@
 pragma solidity ^0.6.7;
 
-import "./ds-test/test.sol";
-import "./ds-value/value.sol";
-import "./ds-token/token.sol";
-import "./ds-math/math.sol";
-import "./dss-gem-joins/join-auth.sol";
-import {Vat}              from "./dss/vat.sol";
-import {Spotter}          from "./dss/spot.sol";
-import {Vow}              from "./dss/vow.sol";
-import {GemJoin, DaiJoin} from "./dss/join.sol";
-import {Dai}              from "./dss/dai.sol";
+import "forge-std/Test.sol";
+import "../lib/dss/lib/ds-value/src/value.sol";
+import "../lib/dss/lib/ds-token/src/token.sol";
+import "../lib/ds-math/src/math.sol";
+import "../lib/dss-gem-joins/src/join-auth.sol";
+import {Vat}              from "../lib/dss/src/vat.sol";
+import {Spotter}          from "../lib/dss/src/spot.sol";
+import {Vow}              from "../lib/dss/src/vow.sol";
+import {GemJoin, DaiJoin} from "../lib/dss/src/join.sol";
+import {Dai}              from "../lib/dss/src/dai.sol";
 
 import "./str-utils.sol";
-import "./tlm.sol";
+import "../src/tlm.sol";
 
 interface Hevm {
     function warp(uint256) external;
@@ -20,7 +20,7 @@ interface Hevm {
 }
 
 /// @dev FYDai are redeemable for Dai at a 1:1 ratio after maturity.
-contract TestFYDai is DSMath, DSToken {
+contract TestFYDai is Test, DSMath, DSToken {
     Dai public dai;
     uint256 public maturity;
 
